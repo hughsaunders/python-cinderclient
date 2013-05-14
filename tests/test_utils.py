@@ -1,3 +1,6 @@
+from argparse import Namespace
+import StringIO
+import sys
 
 from cinderclient import exceptions
 from cinderclient import utils
@@ -73,3 +76,54 @@ class FindResourceTestCase(test_utils.TestCase):
     def test_find_by_str_displayname(self):
         output = utils.find_resource(self.manager, 'entity_three')
         self.assertEqual(output, self.manager.get('4242'))
+
+
+class CaptureStdout(object):
+    """Context manager for capturing stdout from statments in its's block"""
+    def __enter__(self):
+        self.real_stdout = sys.stdout
+        self.stringio = StringIO.StringIO()
+        sys.stdout = self.stringio
+        return self
+
+    def __exit__(self, *args):
+        sys.stdout = self.real_stdout
+        self.stringio.seek(0)
+        self.read = self.stringio.read
+
+
+class PrintListTestCase(test_utils.TestCase):
+
+    def setUp(self):
+        super(PrintListTestCase, self).setUp()
+        self.data = [Namespace(a=1, b=2), Namespace(a=3, b=4)]
+        self.fields = ['a', 'b']
+
+    def test_print_list_with_list(self):
+        with CaptureStdout() as cso:
+            utils.print_list(self.data, self.fields)
+        self.assertEqual("""\
++---+---+
+| a | b |
++---+---+
+| 1 | 2 |
+| 3 | 4 |
++---+---+
+""", cso.read())
+
+    def test_print_list_with_generator(self):
+        with CaptureStdout() as cso:
+            utils.print_list((r for r in self.data), self.fields)
+        self.assertEqual("""\
++---+---+
+| a | b |
++---+---+
+| 1 | 2 |
+| 3 | 4 |
++---+---+
+""", cso.read())
+
+    def test_print_list_empty(self):
+        with CaptureStdout() as cso:
+            utils.print_list([], self.fields)
+        self.assertEqual('', cso.read())
